@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:bot_toast/bot_toast.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:http/http.dart' as http;
@@ -18,15 +18,24 @@ class EditProfileState extends State<EditProfileWidget>{
   ImagePicker imagePicker = ImagePicker();
   ImageCropper imageCropper = ImageCropper();
   void _refresh(){
-    httpget("${root_url}server.py", params: {
-      "op": "get_profile", "id": Apl.sid.toString()
-    }, onResponse: (value){
-      print(value);
-      final data = jsonDecode(value);
-      setState(() {
-        Apl.avater = data["avater"];
-        Apl.nickname = decode(data["nickname"]);
-      });
+    httpget("${server_url}userget/", params: {
+      "op": "get_profile",
+    }, onResponse: (status, res){
+      if(status == 200){
+        setState(() {
+          Apl.avater = res["avater"];
+          Apl.nickname = decode(res["nickname"]);
+        });
+      }
+      else{
+        if(res.containsKey('msg')) {
+          BotToast.showText(text:decode(res['msg']));
+        }
+        else{
+          BotToast.showText(text: "请求出错");
+        }
+      }
+
     });
   }
   @override
@@ -37,39 +46,40 @@ class EditProfileState extends State<EditProfileWidget>{
   @override
   Widget build(BuildContext context){
     return Scaffold(
-        appBar: AppBar(title: const Text("编辑资料"),),
-        body: ListView(children: [
-          GestureDetector(
-              child: Center(child: ClipOval(child: Image.network(getAvater(Apl.avater), width: 80, height: 80, fit: BoxFit.cover,)),),
-              onTap: () async {
-                imagePicker.pickImage(source: ImageSource.gallery).then((value){
-                  if(value == null) return;
-                  imageCropper.cropImage(sourcePath: value.path, aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1))
-                      .then((croppedImage) async{
+      appBar: AppBar(title: const Text("编辑资料"),),
+      body: ListView(children: [
+        GestureDetector(
+          child: Center(child: ClipOval(child: Image.network(getAvater(Apl.avater), width: 80, height: 80, fit: BoxFit.cover,)),),
+          onTap: () async {
+            imagePicker.pickImage(source: ImageSource.gallery).then((value){
+              if(value == null) return;
+              imageCropper.cropImage(sourcePath: value.path, aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1))
+                  .then((croppedImage) async{
                     if(croppedImage == null) return;
-                    var request = http.MultipartRequest('POST', Uri.parse('${root_url}server.py'));
+                    var request = http.MultipartRequest('POST', Uri.parse('${server_url}userpost/'));
                     request.files.add(await http.MultipartFile.fromPath('file', croppedImage.path));
-                    request.fields.addAll({"op" : "upload_avater", "id" : Apl.sid.toString()});
+                    request.fields.addAll({"op" : "upload_avater"});
+                    request.headers.addAll({'Authorization': 'Bearer ${Apl.token}'});
                     var response = await request.send();
                     if(response.statusCode != 200){
-                      Fluttertoast.showToast(msg: "上传失败，请检查网络连接！");
+                      BotToast.showText(text: "上传失败，请检查网络连接！");
                       return;
                     }
-                    var res = (await response.stream.bytesToString()).trim();
-                    if(res == "Done"){
-                      Fluttertoast.showToast(msg: "修改成功");
+                    var res = response.statusCode;
+                    if(res == 200){
+                      BotToast.showText(text: "修改成功");
                       v++;
                       _refresh();
                     }
                     else{
-                      Fluttertoast.showToast(msg: decode(res));
+                      BotToast.showText(text: "修改失败");
                     }
                   });
-                });
-              }
-          ),
-          EditItem(keyvalue: "nickname", title: "昵称", current: Apl.nickname, refresh: _refresh,)
-        ],)
+            });
+          }
+        ),
+        EditItem(keyvalue: "nickname", title: "昵称", current: Apl.nickname, refresh: _refresh,)
+      ],)
     );
   }
 }
@@ -90,7 +100,7 @@ class EditItem extends StatelessWidget{
         Expanded(child: Container()),
         Text("$current >", style:const TextStyle(fontSize: 18, color: Colors.grey))
       ],
-      ),),);
+    ),),);
   }
 }
 
@@ -114,20 +124,31 @@ class EditProfilePageState extends State<EditProfilePage>{
       ),
       FilledButton(
           onPressed: (){
-            httppost("${root_url}server.py",
-                params: {"id" : Apl.sid.toString(), "nickname" : _nameController.text,
+            if(_nameController.text.length > 10){
+              BotToast.showText(text: "昵称长度不能超过10！");
+              return;
+            }
+            httppost("${server_url}userpost/",
+                params: {
+                  "nickname" : _nameController.text,
                   "op" : "edit_nickname"
                 },
-                onResponse: (value){
-                  if(value == "Done") {
-                    Fluttertoast.showToast(msg: "修改成功");
+                onResponse: (status, res){
+                  if(status == 200){
+                    BotToast.showText(text: decode(res['msg']));
                     Navigator.pop(context);
-                  } else {
-                    Fluttertoast.showToast(msg: decode(value));
+                  }
+                  else{
+                    if(res.containsKey('msg')) {
+                      BotToast.showText(text:decode(res['msg']));
+                    }
+                    else{
+                      BotToast.showText(text: "请求出错");
+                    }
                   }
                 },
                 onFailure: (s){
-                  Fluttertoast.showToast(msg: "失败");
+                  BotToast.showText(text: "连接失败，请检查网络");
                 });
           },
           style: const ButtonStyle(backgroundColor: MaterialStatePropertyAll(Colors.blue)),

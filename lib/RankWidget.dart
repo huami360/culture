@@ -3,7 +3,6 @@ import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
@@ -24,11 +23,15 @@ class RankState extends State<RankWidget> with SingleTickerProviderStateMixin{
 
   Future<void> _RefreshList() async{
     number = 0;
-    var response = await httpget_wait("${root_url}server.py",
-        params: {"op" : "get_rank"});
-    setState(() {
-      dataList = jsonDecode(response);
-    });
+    httpget("${server_url}userget",
+        params: {"op" : "get_rank"},
+        onResponse: (status, res) {
+          if (status == 200) {
+            setState(() {
+              dataList = res['data'];
+            });
+          }
+        });
   }
   @override
   void initState(){

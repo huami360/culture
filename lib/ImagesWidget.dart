@@ -4,7 +4,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:fluttertoast/fluttertoast.dart';
+import 'package:bot_toast/bot_toast.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_gallery_saver/image_gallery_saver.dart';
 import 'package:image_picker/image_picker.dart';
@@ -26,11 +26,16 @@ class ImagesState extends State<ImagesWidget> with SingleTickerProviderStateMixi
   ImageCropper imageCropper = ImageCropper();
 
   Future<void> _RefreshList() async{
-    var response = await httpget_wait("${root_url}server.py",
-        params: {"op" : "get_images"});
-    setState(() {
-      dataList = jsonDecode(response);
+    httpget("${server_url}userget",
+      params: {"op" : "get_images"},
+      onResponse: (status, res) {
+      if (status == 200) {
+        setState(() {
+          dataList = res['data'];
+        });
+      }
     });
+
   }
   @override
   void initState(){
@@ -47,17 +52,18 @@ class ImagesState extends State<ImagesWidget> with SingleTickerProviderStateMixi
         onPressed: () async{
           imagePicker.pickImage(source: ImageSource.gallery).then((value) async {
             if(value == null) return;
-            var request = http.MultipartRequest('POST', Uri.parse('${root_url}server.py'));
+            var request = http.MultipartRequest('POST', Uri.parse('${server_url}userpost/'));
             request.files.add(await http.MultipartFile.fromPath('file', value.path));
-            request.fields.addAll({"op" : "upload_image", "id" : Apl.sid.toString()});
+            request.fields.addAll({"op" : "upload_image"});
+            request.headers.addAll({'Authorization': 'Bearer ${Apl.token}'});
             var response = await request.send();
             if(response.statusCode != 200){
-              Fluttertoast.showToast(msg: "上传失败，请检查网络连接！");
+              BotToast.showText(text: "上传失败，请检查网络连接！");
               return;
             }
-            var res = (await response.stream.bytesToString()).trim();
-            if(res == "Done") {
-              Fluttertoast.showToast(msg: "上传成功");
+            var res = response.statusCode;
+            if(res == 200) {
+              BotToast.showText(text: "上传成功");
               _RefreshList();
             }
           });
@@ -130,30 +136,29 @@ class ImagePreviewPage extends StatelessWidget {
               final result = await ImageGallerySaver.saveImage(
                   Uint8List.fromList(response.bodyBytes));
               if (result["isSuccess"] == true) {
-                Fluttertoast.showToast(msg: "保存成功");
+                BotToast.showText(text: "保存成功");
               } else {
-                Fluttertoast.showToast(msg: "保存失败");
+                BotToast.showText(text: "保存失败");
               }
             }
             else{
-              Fluttertoast.showToast(msg: "权限获取失败！");
+              BotToast.showText(text: "权限获取失败！");
             }
           },
         ),
         IconButton(
           icon: const Icon(Icons.delete),
           onPressed: () async {
-            httppost("${root_url}server.py", params: {
-              "id": Apl.sid.toString(),
+            httppost("${server_url}userpost/", params: {
               "op": "del_image",
               "iid": iid.toString()
-            }, onResponse: (value) {
-              if (value == 'Done') {
-                Fluttertoast.showToast(msg: "删除完成");
+            }, onResponse: (status, res) {
+              if (status == 200) {
+                BotToast.showText(text: "删除完成");
                 Navigator.pop(context);
               }
               else{
-                Fluttertoast.showToast(msg: decode(value));
+                BotToast.showText(text: decode(res['msg']));
               }
             });
           },

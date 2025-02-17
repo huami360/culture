@@ -1,13 +1,10 @@
+import 'package:bot_toast/bot_toast.dart';
 import 'package:culture/ProfileWidget.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:fluttertoast/fluttertoast.dart';
-import 'package:path_provider/path_provider.dart';
-
-import 'package:flutter/services.dart';
-import 'dart:convert';
-import 'dart:io';
+import 'RegisterLoginWidget.dart';
+import 'Utils.dart';
 
 import 'ImagesWidget.dart';
 import 'RankWidget.dart';
@@ -29,7 +26,15 @@ class HomePageState extends State<HomePage>{
   @override
   void initState() {
     super.initState();
-    //httpget("${root_url}server.py", params: {"op":"updateinfo"});
+    //httpget("${server_url}server.py", params: {"op":"updateinfo"});
+    reLogin = (){
+      if (preference.containsKey('token')) {
+        BotToast.showText(text: "登录过期，请重新登录");
+        preference.clear();
+        //preference.commit();
+        jumpAndRemove(context, const RegisterLoginPage());
+      }
+    };
     widgets.add(RankWidget());
     widgets.add(ImagesWidget());
     widgets.add(ProfileWidget());
@@ -55,7 +60,7 @@ class HomePageState extends State<HomePage>{
           ],
           currentIndex: _current_index,
           onTap: (int currentIndex){
-            //Fluttertoast.showToast(msg: current_index.toString());
+            //BotToast.showText(text: current_index.toString());
             setState(() {
               _current_index = currentIndex;
             });
